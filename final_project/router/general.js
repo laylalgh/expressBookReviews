@@ -1,43 +1,35 @@
 const express = require('express');
-let books = require("./booksdb.js");
-let isValid = require("./auth_users.js").isValid;
-let users = require("./auth_users.js").users;
-const public_users = express.Router();
+const axios = require('axios');
+const books = require('./booksdb');
+const { register } = require('./auth_users');
+const general = express.Router();
 
+general.post('/register', register);
+general.get('/', (req, res) => res.json(books));
 
-public_users.post("/register", (req,res) => {
-  //Write your code here
-  return res.status(300).json({message: "Yet to be implemented"});
-});
+function findBook(req, res, next) {
+  if (!Object.hasOwn(books, req.params.isbn)) {
+    return res.status(404).json({ message: 'Book not found' });
+  }
+  req.book = books[req.params.isbn];
+  next();
+}
+general.get('/isbn/:isbn', findBook, (req, res) => res.json(req.book));
+general.get('/review/:isbn', findBook, (req, res) => res.json(req.book.reviews));
 
-// Get the book list available in the shop
-public_users.get('/',function (req, res) {
-  //Write your code here
-  return res.status(300).json({message: "Yet to be implemented"});
-});
+for (const field of ['author', 'title']) {
+  general.get('/' + field + '/:value', (req, res) => {
+    const value = req.params.value.toLowerCase();
+    const matches = Object.entries(books).filter(([, book]) => book[field].toLowerCase() === value);
+    res.json(Object.fromEntries(matches));
+  });
+}
 
-// Get book details based on ISBN
-public_users.get('/isbn/:isbn',function (req, res) {
-  //Write your code here
-  return res.status(300).json({message: "Yet to be implemented"});
- });
-  
-// Get book details based on author
-public_users.get('/author/:author',function (req, res) {
-  //Write your code here
-  return res.status(300).json({message: "Yet to be implemented"});
-});
+// Asynchronous clients for the four public catalog routes.
+const api = axios.create({ baseURL: 'http://127.0.0.1:5000', timeout: 5000 });
+async function getAllBooks() { return (await api.get('/')).data; }
+async function getByISBN(isbn) { return (await api.get('/isbn/' + encodeURIComponent(isbn))).data; }
+async function getByAuthor(author) { return (await api.get('/author/' + encodeURIComponent(author))).data; }
+async function getByTitle(title) { return (await api.get('/title/' + encodeURIComponent(title))).data; }
 
-// Get all books based on title
-public_users.get('/title/:title',function (req, res) {
-  //Write your code here
-  return res.status(300).json({message: "Yet to be implemented"});
-});
-
-//  Get book review
-public_users.get('/review/:isbn',function (req, res) {
-  //Write your code here
-  return res.status(300).json({message: "Yet to be implemented"});
-});
-
-module.exports.general = public_users;
+module.exports = { general, getAllBooks, getByISBN, getByAuthor, getByTitle };
